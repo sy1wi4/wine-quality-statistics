@@ -16,6 +16,8 @@ library(corrplot)
 install.packages("ggcorrplot")
 library(ggcorrplot)
 
+install.packages("dplyr")
+library(dplyr)
 
 # TODO: 
 #zmien sciezke xdd, 
@@ -27,6 +29,31 @@ library(ggcorrplot)
 wine <- read.csv("D:/studia/RPIS/projekt/winequality.csv", sep=";")
 
 
+# poszczegolne zmienne w naszym datasecie:
+# - fixed.acidity
+# - volatile.acidity     (zawartosc kwasu octowego, wysoka odpowiada za nieprzyjemny, octowy posmak)
+# - citric.acid          (zawartosc kwasu cytrynowego, w malych ilosciach dodaje "swiezosci")
+# - residual.sugar       (zawartosc cukru pozostalego po zakonczeniu fermentacji, > 45g/l => wino uznawane za slodkie)
+# - chlorides            (zawartosc soli)
+# - free.sulfur.dioxide  (wolny dwutlenek siarki (SO2), zapobiega rozwojowi drobnoustrojow i utlenianiu wina)
+# - total.sulfur.dioxide (wolny i zwiazany SO2 lacznie, w malych ilosciach niewykrywalny)
+# - density              (gestosc, zblizona do gestosci wody, zalezna od zawartosci alkoholu oraz cukru)
+# - pH                   (skala zasadowosci/kwasowosci - od 0 (bardzo kwasowy) do 14 (bardzo zasadowy); wino zazwyczaj 3-4 pH)
+# - sulphates            (siarczany - dodatek, mogacy przyczyniac sie do wzrostu zawartosci SO2, dziala przeciwbakteryjnie)
+# - alcohol              (zawartosc procentowa alkoholu)
+# - quality              (jakosc wina, w skali [0-10])
+
+
+# moznaby spodziewac sie m.in., ze im wieksza zawartosc kwasu octowego (volatile.acidity, tym jakosc wina nizsza)
+# co najbardziej wplywa na ogolna jakosc wina?
+# czy zalezy to od wielu czynnikow?
+# czy istnieje jakas liniowa zaleznosc?
+# czy ktoras ze zmmiennych ma ciekawy rozklad?
+
+
+
+# TODO: density a alkohol + cukier
+
 # brakujace dane
 anyNA(wine)
 # FALSE - no missing values
@@ -36,18 +63,17 @@ anyNA(wine)
 # ze wzgledu na jego jakosc - jest ona okreslona jako liczba calkowita
 # z przedzialu [0,10], im wysza ocena, tym lepsze jakosciowo jest wino
 
-counts <- table(wine$quality)
-bp <- barplot(counts, main="Bar plot of wine quality", 
-        xlab = "Quality",
-        ylab = "Frequency",
-        ylim=c(0,800),
-        col = c("#6699FF"))
-abline(h=0)
-text(bp, counts+50,labels=round(counts,digits=2))
 
-# TODO: moze ladniejszy wykres (np. ggplot)
+data <- as.data.frame(table(wine$quality))
+data
+ggplot(data, aes(x=Var1, y =Freq)) + geom_bar(stat = "identity", fill = c("#66CC99")) +
+  geom_text(aes(label = Freq), nudge_y = 20) + xlab("quality") + ylab("count")
+
 
 # zauwazamy, ze najbardziej liczna jest grupa win o jakosci 5 (w skali 0-10)
+# najnizsza wystepujaca jakosc wina to 3, najwyzsza zas - 8 (18 win najwyzszej jakosci)
+# wina "Sredniej" jakosci (5/6) wystepuja najczesciej, duzo rzadziej wina wysokiej i niskiej 
+# jakosci (najrzadziej niskiej)
 
 
 
@@ -56,8 +82,6 @@ text(bp, counts+50,labels=round(counts,digits=2))
 sd(wine$alcohol)
 
 summary(wine)
-# mozna zauwazyc 
-
 
 # boxplot dla kazdej ze zmiennych
 # rozklad danych oparty na: 
@@ -65,13 +89,7 @@ summary(wine)
 #   gdzie "min" = Q1 - 1.5*IQR, "max" = Q3 + 1.5*IQR, IQR = Q3 - Q1
 #   (rozstep miedzykwartylowy)
 
-# brzydki boxplot
-boxplot(wine$quality,
-        horizontal = TRUE,
-        xlab = "Quality")
 
-
-# ladny boxplot
 
 # 1. QUALITY
 
@@ -79,7 +97,7 @@ boxplot(wine$quality,
 ggplot(data = wine, mapping = aes(y = quality)) + 
     geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
                  alpha = 0.5, size = 0.6) +
-    ylab("Quality") + coord_flip() + stat_boxplot(geom = 'errorbar') 
+    ylab("Quality") + coord_flip() + stat_boxplot(geom = 'errorbar')
 
 
 
@@ -111,6 +129,14 @@ ggplot(data = wine, mapping = aes(y = alcohol)) +
   ylab("Alcohol") + coord_flip() + stat_boxplot(geom = 'errorbar')
 # skosnosc prawostronna? (lekko xd)
 
+# histogram
+ggplot(data = wine, aes(alcohol)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/5)
+
+# najczesciej wystepujaca zawartosc alkoholu oscyluje miedzy 9.5 a 11.1 [%]
+# im wieksza zawartosc wina, tym rzedziej ono wystepuje
+
+
 
 # 4. DENSITY
 
@@ -129,6 +155,39 @@ ggplot(data = wine, aes(density)) +
 
 
 
+# 5. SULPHATES
+
+# boxplot
+ggplot(data = wine, mapping = aes(y = sulphates)) + 
+  geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+               alpha = 0.5, size = 0.6) +
+  ylab("Sulphates") + coord_flip() + stat_boxplot(geom = 'errorbar')
+
+# rozklad jakby eksponencjalny???
+
+# histogram z naniesiona gestoscia oraz gestoscia rozkladu wykladniczego
+ggplot(data = wine, aes(sulphates)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 1/50, color = "darkblue", fill = c("#99CCFF")) +
+  geom_density(size = 0.9, color = c("#000033")) 
+
+
+
+# 6. RESIDUAL SUGAR
+
+# histogram
+ggplot(data = wine, aes(residual.sugar)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/4) 
+
+
+
+# 7. CITRIC ACID
+
+# histogram
+ggplot(data = wine, aes(citric.acid)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/100)
+
+# OBS: na wykresie widac 3 interesujace maksima lokalne w okolicy 0, 0.25 oraz 0.5 [g] 
+# co ma na to wplyw?
 
 
 # TODO: reszta boxplotów
@@ -182,6 +241,12 @@ shapiro.test(wine$pH)
 # a wiec niestety nie mamy do czynienia z rokzladem normalnym
 
 
+# KOlmogorov-Smirnov Test:
+ks.test(wine$pH, "pnorm",mean = mean(wine$pH), sd = sd(wine$pH))
+# TODO: ???
+
+
+
 # a teraz zajmijmy sie gestoscia:
 
 
@@ -199,6 +264,7 @@ kurtosis(wine$density)
 shapiro.test(wine$density)
 
 # p-value = 1.936e-08 => nie jest to rozklad zblizony do normalnego
+
 
 
 # Q-Q Plot - służy do porównywania rozkładu w próbie z wybranym 
@@ -273,14 +339,7 @@ flattenCorrMatrix(res2$r, res2$P)
 # nieistotny statystycznie uznajemy taki, ze p-wartosc > 0.05
 # (oznaczone jako puste pole na wykresie)
 
-corrplot(res2$r, type="upper", order="hclust",
-         tl.cex = 0.8,tl.col = "black", tl.srt = 45,
-         p.mat = res2$P, sig.level = 0.05, insig = "blank",
-         diag = FALSE)
 
-
-
-# ladniejszy
 corr <- cor(wine)
 corr
 pval <- cor_pmat(wine)
@@ -292,6 +351,7 @@ ggcorrplot(corr, hc.order = TRUE, type = "upper", lab = TRUE,
 
 
 
+
 # TODO:
 # KORELACJA SPEARMANA - lepsza, w przypadku wartosci odstajacych
 
@@ -299,16 +359,53 @@ ggcorrplot(corr, hc.order = TRUE, type = "upper", lab = TRUE,
 
 # skupmy sie na tym, od czego w glownej mierze zalezy jakosc wina
 # jak widzimy na wykresie, najwieksza korelacja (liniowa) wystepuje kolejno 
-# dla: alcohol, votalite.acidity, sulphates, citric.acid, etc.
-# mozemy zatem przeanalizowac regresje
+# dla: alcohol, volatile.acidity, sulphates, citric.acid, etc.
+
+
+# spojrzmy jak zmienia sie zawartosc alkoholu wraz ze wzrostem jakosci :
+
+ggplot(data = wine, mapping = aes(x = as.factor(quality), y = alcohol)) + 
+  geom_boxplot(fill = c("#CC99FF"), outlier.size = 2, alpha = 0.5, size = 0.6) +
+  ylab("Alcohol") + xlab("Quality") + stat_boxplot(geom = 'errorbar') 
+
+# zauwazyc mozna, ze im wyzsza jakosc wina, tym wieksza mediana zawartosci alkoholu,
+# wyjatekiem jest wino jakosci 5, tam tez pojawia sie spora ilosc wartosci odstajacych
+
+ggplot(data = wine, mapping = aes(x = as.factor(quality), y = alcohol)) + 
+  ylab("Alcohol") + xlab("Quality") +  geom_jitter(size = 1.5, color = c("#000066"), alpha =0.5)
+
+# na wykresie punktowym widac duzo wieksze zageszczenie dla jakosci 5/6, 
+# bardzo male dla 3 czy 8, zatem korelacja alkoholu i jakosci wina nie jest zbyt silna
+
+
+# przeanalizujmy jeszcze zawartosc kwasu octowego (volatile.acidity), by sprawdzic,
+# czy poczatkowe przypuszczenie, jakoby wieksza jego zawartosc powodowala spadek 
+# jakosci, jest sluszne
+
+ggplot(data = wine, mapping = aes(x = as.factor(quality), y = volatile.acidity)) + 
+  geom_boxplot(fill = c("#CC99FF"), outlier.size = 2, alpha = 0.5, size = 0.6) +
+  ylab("Volatile acidity") + xlab("Quality") + stat_boxplot(geom = 'errorbar') 
+
+# widac wyraznie, ze im wieksza zawartosc kwasu octowego w winie, tym gorsza
+# jest jego jakosc - co zgadza sie z przypuszczeniami
+
+
+# mozemy przeanalizowac regresje
+
 
 # REGRESJA LINIOWA
 
-# scatter plot?
 
+# quality - alcohol
 ggplot(wine, aes(x=quality, y=alcohol)) + 
   geom_point(color = c("#6633CC")) + 
   geom_smooth(method = "lm", color = "#CC99FF")
+
+# alcohol - density
+ggplot(wine, aes(x=alcohol, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
 
 
 # duza korelacja takze pomiedzy: 
@@ -336,12 +433,80 @@ ggplot(wine, aes(x=fixed.acidity, y=density)) +
   geom_point(color = c("#6633CC")) + 
   geom_smooth(method = "lm", color = "#CC99FF")
 
-# alcohol - density
-ggplot(wine, aes(x=alcohol, y=density)) + 
+
+
+# stosunkowo duza korelacja (ujemna) wystepuje pomiedzy zawartoscia kwasu octowego
+# a kwasu cytrynowego (-0.55), a takze miedzy kazdym z nich oraz jakoscia wina
+
+# sprawdzmy jak mediana (ktora odporna jest na wartosci odstajace) zawartosci 
+# kazdego z powyzszych kwasow zmienia sie wraz ze wzrostem jakosci wina
+
+ggplot(wine, aes(quality, citric.acid)) +
+  stat_summary(fun.y = median, color = "lightsalmon", geom = "line", size =1) 
+  
+ggplot(wine, aes(quality, volatile.acidity)) +
+  stat_summary(fun.y = median, color = "lightsteelblue4", geom = "line", size =1)
+
+
+
+
+
+# grupujemy wiec wg jakosci wina i obliczamy mediane dla zawartosci kwasow
+# w kazdej z grup
+by_quality <- wine %>% 
+  group_by(quality)%>%
+  summarise(cit_med = median(citric.acid), vol_med = median(volatile.acidity), n = n())
+  
+by_quality
+
+# TODO: wykres tego powyzej ???
+
+
+
+
+
+
+# bardzo mala korelacja pomiedzy np. free.sulfur.dioxide - sulphates
+# zobaczmy wykres:
+
+ggplot(wine, aes(x=free.sulfur.dioxide, y=sulphates)) + 
   geom_point(color = c("#6633CC")) + 
   geom_smooth(method = "lm", color = "#CC99FF")
+# zdecydowanie brak tutaj jakiejkolwiek liniowej zaleznosci
+
+
+
+ 
+# najwieksze korelacje ma fixed.acidity (3 x powyzej 0.6)
+# zobaczmy to na wykresie:
+
+
+
+plot(wine)
+
+
+
+# TODO: scatter plot?
 
   
-  
-# TODO: Adding a trend line to a scatter plot 
-# https://bio304-class.github.io/bio304-fall2017/ggplot-bivariate.html
+# TODO: PRZEDZIALY UFNOSCI
+
+
+# TODO: dopasowanie rozkladu???
+# beznadzieja : ))))
+
+install.packages("fitdistrplus")
+library(fitdistrplus)
+
+descdist(wine$alcohol, discrete = FALSE)
+
+descdist(wine$pH, discrete = FALSE)
+
+descdist(wine$density, discrete = FALSE)
+
+descdist(wine$density, discrete = TRUE)
+
+fitdist(wine$alcohol, "beta")
+
+
+# TODO:  zaleznosc jakosci od wielu czynnikow
