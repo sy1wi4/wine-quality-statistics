@@ -7,6 +7,16 @@ library(ggpubr)
 install.packages("propagate")
 library (propagate)
 
+install.packages("Hmisc")
+library(Hmisc)
+
+install.packages("corrplot")
+library(corrplot)
+
+install.packages("ggcorrplot")
+library(ggcorrplot)
+
+
 # TODO: 
 #zmien sciezke xdd, 
 # kodowanie polskich znakow, 
@@ -80,13 +90,13 @@ ggplot(data = wine, mapping = aes(y = pH)) +
   geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
                alpha = 0.5, size = 0.6) +
   ylab("pH") + coord_flip() + stat_boxplot(geom = 'errorbar')
-# rozklad symetryczny?
+# rozklad symetryczny? moze normalny?
 
 
 # histogram z naniesiona gestoscia oraz gestoscia rozkladu normalnego
 ggplot(data = wine, aes(pH)) + 
   geom_histogram(aes(y = ..density..), binwidth = 1/50, color = "darkblue", fill = c("#99CCFF")) +
-  geom_density(alpha = 0.2, size = 0.9, color = c("#000033")) + 
+  geom_density(size = 0.9, color = c("#000033")) + 
   stat_function(fun = dnorm, args = list(mean = mean(wine$pH), sd = sd(wine$pH)), color = "red", size = 0.7)
 
 
@@ -110,6 +120,15 @@ ggplot(data = wine, mapping = aes(y = density)) +
                alpha = 0.5, size = 0.6) +
   ylab("Density") + coord_flip() + stat_boxplot(geom = 'errorbar')
 # rozklad symetryczny? 
+
+# histogram z naniesiona gestoscia oraz gestoscia rozkladu normalnego
+ggplot(data = wine, aes(density)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 1/4000, color = "darkblue", fill = c("#99CCFF")) +
+  geom_density(size = 0.9, color = c("#000033")) + 
+  stat_function(fun = dnorm, args = list(mean = mean(wine$density), sd = sd(wine$density)), color = "red", size = 0.7)
+
+
+
 
 
 # TODO: reszta boxplotów
@@ -147,30 +166,92 @@ kurtosis(wine$pH)
 #                rozkladzie normalnym)
 
 # dla pewnosci uzyjmy testu
-# TODO: test   http://www.sthda.com/english/wiki/normality-test-in-r
+
+
+# Shapiro-Wilk’s Test:
+
+# H0: rozklad zblizony do normalnego
+# H1: rozklad niezblizony do normalnego
+# jezeli p-wartosc > 0.05 (nieistotne statystycznie) => 
+#     przyjmujemy H0 =>
+#     rozklad zblizony do normalnego
+
+shapiro.test(wine$pH)
+
+# p-value = 1.712e-06,
+# a wiec niestety nie mamy do czynienia z rokzladem normalnym
+
+
+# a teraz zajmijmy sie gestoscia:
+
+
+den_mean = mean(wine$density)
+den_med = median(wine$density)
+den_mode = Mode(wine$density)
+
+cat("mean   ", den_mean, "\nmedian:", den_med, "\nmode   ", den_mode)
+
+kurtosis(wine$density)
+# # kurtoza > 0 => rozklad wysmukly (wartosci bardziej skoncentrowane niz przy 
+#                rozkladzie normalnym)
+
+# Shapiro-Wilk’s Test:
+shapiro.test(wine$density)
+
+# p-value = 1.936e-08 => nie jest to rozklad zblizony do normalnego
+
+
+# Q-Q Plot - służy do porównywania rozkładu w próbie z wybranym 
+#            rozkładem hipotetycznym – w tym wypadku rozkładem normalnym
+
+
+# PH
+ggplot(wine, aes(sample = pH)) + 
+  stat_qq(color = c("#FF6633"), size = 1.5) +
+  stat_qq_line(color = c("#6633CC"), size = 0.8) +
+  ggtitle("Q-Q Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+# DENSITY
+ggplot(wine, aes(sample = density)) + 
+  stat_qq(color = c("#FF6633"), size = 1.5) +
+  stat_qq_line(color = c("#6633CC"), size = 0.8) +
+  ggtitle("Q-Q Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+# zauwazyc mozna ze rozklad pH jest bardzo zblizony do normalnego, jednak 
+# rozni sie przez wartosci odstajace, ktorych polozenie znacznie odbiega od prostej
+
+
+
+# sprawdzmy, jak wiele jest wartosci odstajacych pH oraz gestosci:
+
+outliers <- function(x){
+  length(which(x >  mean(x) + 3 * sd(x) | x < mean(x) - 3 * sd(x))  ) / length(x)
+}
+
+outliers(wine$density)
+outliers(wine$pH)
 
 
 
 
+# ----------------------------------------------------------------------
 # KORELACJA R-PEARSONA - sluzy do sprawdzenia, czy zmienne ilosciowe sa
-# powiazane zwiazkiem liniowym
-
-# wsp. korelacji miedzy parami zmiennych (correlation matrix)
-cor.test(wine$alcohol, wine$pH)
-res <- cor(wine)   
-round(res,2)
+# powiazane zwiazkiem liniowym, jednak jest ona wrazliwa na wartosci odstajace
 
 
 # wsp. korelacji oraz p-wartosc (poziom istotnosci)
-install.packages("Hmisc")
-library("Hmisc")
 res2 <- rcorr(as.matrix(wine))
 res2
 res2$r     # tylko wsp. korelacji
 round(res2$P,2)     # tylko p-wartosci
 
 
-# funkcja formatujaca powyzsza macierz
+# funkcja formatujaca macierz korelacji
 # 4 kolumny: nazwa wiersza, nazwa kolumny, wsp. korelacji, p-wartosc
 
 flattenCorrMatrix <- function(cormat, pmat) {
@@ -186,27 +267,81 @@ flattenCorrMatrix(res2$r, res2$P)
 
 
 # correlogram - graficznie przedstawiona macierz korelacji
-install.packages("corrplot")
-
-# type = "upper" - odpowiada za wywietlenie tylko macierzy górnej trójkatnej
-# order = "hlust" - uporzadkowanie macierzy wg. wspolczynnika korelacji
-#                   "hierarchical clustering order"
-library(corrplot)
-corrplot(res, type = "upper", order = "hclust", tl.cex = 0.8,
-         tl.col = "black", tl.srt = 45)
 
 
 # polaczenie correlogramu z testem istotnosci - za wynik 
-# nieistotny statystycznie uznajemy taki, ze p-wartosc <= 0.05
+# nieistotny statystycznie uznajemy taki, ze p-wartosc > 0.05
 # (oznaczone jako puste pole na wykresie)
-
 
 corrplot(res2$r, type="upper", order="hclust",
          tl.cex = 0.8,tl.col = "black", tl.srt = 45,
-         p.mat = res2$P, sig.level = 0.05, insig = "blank")
+         p.mat = res2$P, sig.level = 0.05, insig = "blank",
+         diag = FALSE)
 
 
-# jeszcze inne przedstawienie macierzy korelacji
-# na przekatnej rozklad kazdej ze zmiennych
-# pod przekatna dwuwymiarowe wykresy punktowe
-# nad przekatna wspolczynnik korelacji (liczba) oraz poziom istotnosci (gwiazdki)
+
+# ladniejszy
+corr <- cor(wine)
+corr
+pval <- cor_pmat(wine)
+pval
+
+ggcorrplot(corr, hc.order = TRUE, type = "upper", lab = TRUE,
+           colors = c("#2166AC", "white", "#CC0000"), p.mat = pval, 
+           sig.level = 0.05, insig = "blank", ggtheme = ggplot2::theme_gray)
+
+
+
+# TODO:
+# KORELACJA SPEARMANA - lepsza, w przypadku wartosci odstajacych
+
+
+
+# skupmy sie na tym, od czego w glownej mierze zalezy jakosc wina
+# jak widzimy na wykresie, najwieksza korelacja (liniowa) wystepuje kolejno 
+# dla: alcohol, votalite.acidity, sulphates, citric.acid, etc.
+# mozemy zatem przeanalizowac regresje
+
+# REGRESJA LINIOWA
+
+# scatter plot?
+
+ggplot(wine, aes(x=quality, y=alcohol)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# duza korelacja takze pomiedzy: 
+
+# ph - fixed.acidity
+ggplot(wine, aes(x=pH, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# total.sulfur.dioxide - free.sulfur.dioxide
+ggplot(wine, aes(x=total.sulfur.dioxide, y=free.sulfur.dioxide)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# citric.acid - fixed.acidity
+ggplot(wine, aes(x=citric.acid, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# fixed.acidity - density
+ggplot(wine, aes(x=fixed.acidity, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+# alcohol - density
+ggplot(wine, aes(x=alcohol, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+  
+  
+# TODO: Adding a trend line to a scatter plot 
+# https://bio304-class.github.io/bio304-fall2017/ggplot-bivariate.html
