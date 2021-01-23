@@ -1,30 +1,24 @@
 install.packages("tidyverse")
-library(ggplot2)
-
 install.packages("ggpubr")
-library(ggpubr)
-
 install.packages("propagate")
-library (propagate)
-
 install.packages("Hmisc")
-library(Hmisc)
-
 install.packages("corrplot")
-library(corrplot)
-
 install.packages("ggcorrplot")
-library(ggcorrplot)
-
 install.packages("dplyr")
+
+library(ggplot2)
+library(ggpubr)
+library (propagate)
+library(Hmisc)
+library(corrplot)
+library(ggcorrplot)
 library(dplyr)
+
+
 
 # TODO: 
 #zmien sciezke xdd, 
-# kodowanie polskich znakow, 
-# czyszczenie danych?,
 # przedzial ufnosci
-
 
 wine <- read.csv("D:/studia/RPIS/projekt/winequality.csv", sep=";")
 
@@ -52,9 +46,7 @@ wine <- read.csv("D:/studia/RPIS/projekt/winequality.csv", sep=";")
 
 
 
-# TODO: density a alkohol + cukier
-
-# brakujace dane
+# brakujace dane?
 anyNA(wine)
 # FALSE - no missing values
 
@@ -74,8 +66,6 @@ ggplot(data, aes(x=Var1, y =Freq)) + geom_bar(stat = "identity", fill = c("#66CC
 # najnizsza wystepujaca jakosc wina to 3, najwyzsza zas - 8 (18 win najwyzszej jakosci)
 # wina "Sredniej" jakosci (5/6) wystepuja najczesciej, duzo rzadziej wina wysokiej i niskiej 
 # jakosci (najrzadziej niskiej)
-
-
 
 
 # odchylenie standardowe - miara rozrzutu wokol sredniej
@@ -190,8 +180,6 @@ ggplot(data = wine, aes(citric.acid)) +
 # co ma na to wplyw?
 
 
-# TODO: reszta boxplotów
-
 
 # obserwacja: wiekoszosc badanych cech ma wiele wartosci odstajacych
 # zauwazyc mozna, ze pH oraz alkohol maja rozklad symetryczny
@@ -201,6 +189,7 @@ ggplot(data = wine, aes(citric.acid)) +
 # wiemy, ze rozklad dla rozkladu normalnego mamy jedno maksimum, kurtoza wynosi 0,
 # w punkci centralnym znajduja sie srednia arytm., mediana, moda (dominanta)
 # zatem sprawdzmy je:
+
 
 # funkcja wyliczajaca mode
 Mode <- function(v) {
@@ -241,10 +230,6 @@ shapiro.test(wine$pH)
 # a wiec niestety nie mamy do czynienia z rokzladem normalnym
 
 
-# KOlmogorov-Smirnov Test:
-ks.test(wine$pH, "pnorm",mean = mean(wine$pH), sd = sd(wine$pH))
-# TODO: ???
-
 
 
 # a teraz zajmijmy sie gestoscia:
@@ -257,7 +242,7 @@ den_mode = Mode(wine$density)
 cat("mean   ", den_mean, "\nmedian:", den_med, "\nmode   ", den_mode)
 
 kurtosis(wine$density)
-# # kurtoza > 0 => rozklad wysmukly (wartosci bardziej skoncentrowane niz przy 
+# kurtoza > 0 => rozklad wysmukly (wartosci bardziej skoncentrowane niz przy 
 #                rozkladzie normalnym)
 
 # Shapiro-Wilk’s Test:
@@ -290,6 +275,7 @@ ggplot(wine, aes(sample = density)) +
 
 # zauwazyc mozna ze rozklad pH jest bardzo zblizony do normalnego, jednak 
 # rozni sie przez wartosci odstajace, ktorych polozenie znacznie odbiega od prostej
+# rozklad density odbiega jeszcze bardziej
 
 
 
@@ -368,14 +354,10 @@ ggplot(data = wine, mapping = aes(x = as.factor(quality), y = alcohol)) +
   geom_boxplot(fill = c("#CC99FF"), outlier.size = 2, alpha = 0.5, size = 0.6) +
   ylab("Alcohol") + xlab("Quality") + stat_boxplot(geom = 'errorbar') 
 
+
 # zauwazyc mozna, ze im wyzsza jakosc wina, tym wieksza mediana zawartosci alkoholu,
 # wyjatekiem jest wino jakosci 5, tam tez pojawia sie spora ilosc wartosci odstajacych
 
-ggplot(data = wine, mapping = aes(x = as.factor(quality), y = alcohol)) + 
-  ylab("Alcohol") + xlab("Quality") +  geom_jitter(size = 1.5, color = c("#000066"), alpha =0.5)
-
-# na wykresie punktowym widac duzo wieksze zageszczenie dla jakosci 5/6, 
-# bardzo male dla 3 czy 8, zatem korelacja alkoholu i jakosci wina nie jest zbyt silna
 
 
 # przeanalizujmy jeszcze zawartosc kwasu octowego (volatile.acidity), by sprawdzic,
@@ -390,7 +372,7 @@ ggplot(data = wine, mapping = aes(x = as.factor(quality), y = volatile.acidity))
 # jest jego jakosc - co zgadza sie z przypuszczeniami
 
 
-# mozemy przeanalizowac regresje
+# przeanalizujmy regresje
 
 
 # REGRESJA LINIOWA
@@ -448,7 +430,7 @@ ggplot(wine, aes(quality, volatile.acidity)) +
   stat_summary(fun.y = median, color = "lightsteelblue4", geom = "line", size =1)
 
 
-
+# polaczmy w jeden wykres:
 
 
 # grupujemy wiec wg jakosci wina i obliczamy mediane dla zawartosci kwasow
@@ -457,16 +439,24 @@ by_quality <- wine %>%
   group_by(quality)%>%
   summarise(cit_med = median(citric.acid), vol_med = median(volatile.acidity), n = n())
   
-by_quality
-
-# TODO: wykres tego powyzej ???
 
 
+ggplot() + 
+  geom_line(data = by_quality, aes(x = quality, y = cit_med, color = "lightsalmon"), size = 1) + 
+  geom_line(data = by_quality, aes(x = quality, y = vol_med, color = "lightsteelblue4"), size = 1) +
+  ylab("acid") + scale_color_discrete(name = "acids:", labels = c("citric", "volatile"))
 
+
+# OBS:
+# wraz ze wzrostem jakosci wina, do pewnego momentu wzrasta zawartosc kwasu cytrynowego 
+# ("swiezosc"), natomiast maleje zawartosc kwasu octowego (octowy posmak)
+# im wyzsza jakosc, tym roznica miedzy zawartoscia kwasow maleje
+# zauwazmy, ze wino najwyszej jakosci (7/8) posiadaja podobna ilosc obu z tych kwasow 
 
 
 
 # bardzo mala korelacja pomiedzy np. free.sulfur.dioxide - sulphates
+
 # zobaczmy wykres:
 
 ggplot(wine, aes(x=free.sulfur.dioxide, y=sulphates)) + 
@@ -478,18 +468,8 @@ ggplot(wine, aes(x=free.sulfur.dioxide, y=sulphates)) +
 
  
 # najwieksze korelacje ma fixed.acidity (3 x powyzej 0.6)
-# zobaczmy to na wykresie:
+# (citric.acid, pH, density)
 
-
-
-plot(wine)
-
-
-
-# TODO: scatter plot?
-
-  
-# TODO: PRZEDZIALY UFNOSCI
 
 
 # TODO: dopasowanie rozkladu???
@@ -507,6 +487,3 @@ descdist(wine$density, discrete = FALSE)
 descdist(wine$density, discrete = TRUE)
 
 fitdist(wine$alcohol, "beta")
-
-
-# TODO:  zaleznosc jakosci od wielu czynnikow
