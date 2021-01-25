@@ -1,0 +1,573 @@
+\documentclass{article}
+
+\usepackage{polski}
+% skomentowana dla MAC wersja {inputenc}
+ \usepackage[utf8]{inputenc}
+% \usepackage[T1]{fontenc}
+%\usepackage[cp1250]{inputenc}
+\usepackage{polski}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{amsmath}
+\usepackage{Sweave}
+\usepackage{enumerate}
+\usepackage{hyperref}
+\usepackage[version=4]{mhchem}
+
+\title{Wpisz tutaj tytuÅ‚ swojego projektu}
+\author{\textbf{indeks, ImiÄ™ NAZWISKO}, czwartek $11^{30}$\\ 
+\textit{AGH, WydziaÅ‚ Informatyki Elektroniki i Telekomunikacji}\\
+\textit{Rachunek prawdopodobieÅ„stwa i statystyka 2020/2021}}
+\date{KrakÃ³w, \today}
+
+
+\begin{document}
+
+% potrzebne biblioteki 
+<<include = F, echo = F>>=
+library(ggplot2)
+library(ggpubr)
+library (propagate)
+library(Hmisc)
+library(corrplot)
+library(ggcorrplot)
+library(dplyr)
+library(fitdistrplus)
+@
+
+
+
+
+
+\SweaveOpts{concordance=TRUE}
+\maketitle
+
+\textit{Ja, niÅ¼ej podpisany(na) wÅ‚asnorÄ™cznym podpisem deklarujÄ™, Å¼e przygotowaÅ‚em(Å‚am) przedstawiony do oceny projekt samodzielnie i Å¼adna jego czÄ™Å›Ä‡ nie jest kopiÄ… pracy innej osoby.}
+\begin{flushright}
+{............................................}
+\end{flushright}
+
+\section{Streszczenie raportu}
+Raport powstaÅ w oparciu o analizÄ™ danych dotyczÄ…cych portugalskiego czerwonego wina "Vinho Verde".
+Dotycza one jego jakosci oraz wlasciwosci fizykochemicznych opisanych pokrotce w dalszej czesci raportu.
+
+W trakcie analizy zbadano:
+\begin{itemize}
+\item Podstawowe wlasnosci danych
+\item Co wplywa w glownej mierze na jakosc wina?
+\item Rodzaj rozkladu zmiennych 
+\item Czy ktoras ze zmiennych posiada powszechny rozklad?
+\item Zale¿nosci miedzy danymi ze szczegolnym podkresleniem zaleznosci  liniowych
+\item Miedzy ktorymi zmiennymi wystepuje korelacja?
+\end{itemize}
+
+\section{Opis danych}
+
+Dane do projektu pochodzÄ… ze strony \href{url}{\texttt{https://www.kaggle.com/}}. 
+
+
+
+Badane dane zawieraja nastepujace zmienne (numeryczne):
+\begin{enumerate}
+\item fixed.acidity
+\item volatile.acidity - zawartosc kwasu octowego, wysoka odpowiada za nieprzyjemny, octowy posmak
+\item citric.acid - zawartosc kwasu cytrynowego, w malych ilosciach dodaje "swiezosci"
+\item residual.sugar - zawartosc cukru pozostalego po zakonczeniu fermentacji,$ > 45g/l \Rightarrow$ wino uznawane za slodkie
+\item chlorides - zawartosc soli
+\item free.sulfur.dioxide - wolny dwutlenek siarki (\ce{SO2}), zapobiega rozwojowi drobnoustrojow i utlenianiu wina
+\item total.sulfur.dioxide - wolny i zwiazany \ce{SO2} lacznie, w malych ilosciach niewykrywalny
+\item density - gestosc, zblizona do gestosci wody, zalezna od zawartosci alkoholu oraz cukru
+\item pH - skala zasadowosci/kwasowosci - od 0 (bardzo kwasowy) do 14 (bardzo zasadowy); wino zazwyczaj 3-4 pH
+\item sulphates - siarczany - dodatek, mogacy przyczyniac sie do wzrostu zawartosci \ce{SO2}, dziala przeciwbakteryjnie
+\item alcohol - zawartosc procentowa alkoholu
+\item quality - jakosc wina, w skali $[0-10]$)
+\end{enumerate}
+
+Moznaby spodziewac sie m.in., ze im wieksza zawartosc kwasu octowego (volatile.acidity, tym jakosc wina nizsza)
+
+
+\section{Analiza danych}
+
+PoniÅ¼ej zamieszczono przykÅ‚adowe wywoÅ‚ania prostych formuÅ‚ z pakietu R, ktÃ³rych skÅ‚adnia moÅ¼e przydaÄ‡ siÄ™ w projekcie.
+\begin{enumerate}
+\item wczytanie danych
+<<>>=
+wine <- read.csv("D:/studia/RPIS/projekt/winequality.csv", sep=";")
+@
+
+\item funkcja wyliczajaca mode
+<<>>=
+Mode <- function(v) {
+  uniqv <- unique(v)
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+@
+
+\item funkcja obliczajaca, ile jest wartosci odstajacych
+<<>>=
+outliers <- function(x){
+  length(which(x >  mean(x) + 3 * sd(x) | x < mean(x) - 3 * sd(x))  ) / length(x)
+}
+@
+
+
+
+
+\end{enumerate}
+
+\subsection{Weryfikacja poprawnosci danych}
+<<>>=
+anyNA(wine)
+@
+
+W analizowanym zbiorze nie ma brakujacych danych.
+\newline
+Wszelkie wartosci odstajace beda brane pod uwage, zadnych nie usuawamy.
+
+\subsection{Wydobywanie podstawowych informacji z danych}
+
+<<>>=
+summary(wine)
+@
+
+<<>>=
+head(wine)
+@
+
+
+Przyjrzyjmy sie wykresowi slupkowemu, przedstawiajacemu  licznosc poszczegolnych grup wina, 
+ze wzgledu na jego jakosc - jest ona okreslona jako liczba calkowita
+z przedzialu $[0,10]$, im wysza ocena, tym lepsze jakosciowo jest wino
+
+<<label = quality_barplot, fig = TRUE>>=
+data <- as.data.frame(table(wine$quality))
+data
+ggplot(data, aes(x=Var1, y =Freq)) + geom_bar(stat = "identity", fill = c("#66CC99")) +
+  geom_text(aes(label = Freq), nudge_y = 20) + xlab("quality") + ylab("count")
+@
+
+
+Zauwazmy, ze najbardziej liczna jest grupa win o jakosci 5 (w skali 0-10), najnizsza wystepujaca jakosc wina to 3, 
+najwyzsza zas - 8 (18 win najwyzszej jakosci)
+Wina "Sredniej" jakosci (5/6) wystepuja najczesciej, duzo rzadziej wina wysokiej i niskiej 
+jakosci (najrzadziej niskiej)
+
+
+
+Przyjrzyjmy sie wykresom pudelkowym i/lub histogramom zmiennych:
+
+\subsubsection{QUALITY}
+<<label = quality_boxplot, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(y = quality)) + 
+    geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+                 alpha = 0.5, size = 0.6) +
+    ylab("Quality") + coord_flip() + stat_boxplot(geom = 'errorbar')
+@
+
+
+
+\subsubsection{PH}
+<<label = ph_boxplot, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(y = pH)) + 
+  geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+               alpha = 0.5, size = 0.6) +
+  ylab("pH") + coord_flip() + stat_boxplot(geom = 'errorbar')
+@
+
+Na podstawie wykresu mozna podejrzewac, ze rozklad ten jest symetryczny, moze normalny?
+\newline
+Spojrzmy zatem na histogram z naniesiona gestoscia tegoz rozkladu oraz gestoscia rozkladu normalnego
+
+<<label = ph_hist, fig = TRUE>>=
+ggplot(data = wine, aes(pH)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 1/50, color = "darkblue", fill = c("#99CCFF")) +
+  geom_density(size = 0.9, color = c("#000033")) + 
+  stat_function(fun = dnorm, args = list(mean = mean(wine$pH), sd = sd(wine$pH)), color = "red", size = 0.7)
+@
+
+
+
+\subsubsection{ALCOHOL}
+
+<<label = alcohol_boxplot, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(y = alcohol)) + 
+  geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+               alpha = 0.5, size = 0.6) +
+  ylab("Alcohol") + coord_flip() + stat_boxplot(geom = 'errorbar')
+@
+
+Podejrzewamy skosnosc prawostronna rozkladu?
+Sprawdzmy:
+
+<<>>=
+skewness(wine$alcohol)
+@
+
+Wspolczynnik skosnosci $>0$, co swiadczy o prawostronnej asymetrii rozkladu (rozklad dodatnio skosny)
+
+Spojrzmy jeszcze jak przedstawia sie histogram
+
+<<label = alcohol_hist, fig = TRUE>>=
+ggplot(data = wine, aes(alcohol)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/5)
+@
+
+Najczesciej wystepujaca zawartosc alkoholu oscyluje miedzy 9.5 a 11.1 $\%$
+im wieksza zawartosc wina, tym rzedziej ono wystepuje
+
+
+\subsubsection{DENSITY}
+
+<<label = density_boxplot, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(y = density)) + 
+  geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+               alpha = 0.5, size = 0.6) +
+  ylab("Density") + coord_flip() + stat_boxplot(geom = 'errorbar')
+@
+
+Rozklad symetryczny, normalny?
+
+Popatrzmy znow na histogram z naniesiona gestoscia tegoz rozkladu oraz gestoscia rozkladu normalnego :
+
+<<label = density_boxplot, fig = TRUE>>=
+ggplot(data = wine, aes(density)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 1/4000, color = "darkblue", fill = c("#99CCFF")) +
+  geom_density(size = 0.9, color = c("#000033")) + 
+  stat_function(fun = dnorm, args = list(mean = mean(wine$density), sd = sd(wine$density)), color = "red", size = 0.7)
+@
+
+\subsubsection{SULPHATES}
+
+<<label = sulphates_boxplot, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(y = sulphates)) + 
+  geom_boxplot(width = 1.2, fill = c("#CC99FF"), outlier.size = 2, 
+               alpha = 0.5, size = 0.6) +
+  ylab("Sulphates") + coord_flip() + stat_boxplot(geom = 'errorbar')
+@
+
+
+<<label = suphates_hist, fig = TRUE>>=
+ggplot(data = wine, aes(sulphates)) + 
+  geom_histogram(aes(y = ..density..), binwidth = 1/50, color = "darkblue", fill = c("#99CCFF")) +
+  geom_density(size = 0.9, color = c("#000033")) 
+@
+
+Rozklad ten jest wyraznie prawostronnie skosny.
+
+
+\subsubsection{RESIDUAL SUGAR}
+
+<<label = sugar_hist, fig = TRUE>>=
+ggplot(data = wine, aes(residual.sugar)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/4) 
+@
+
+
+\subsubsection{CITRIC ACID}
+
+<<label = citr_hist, fig = TRUE>>=
+ggplot(data = wine, aes(citric.acid)) + 
+  geom_histogram( color = "darkblue", fill = c("#99CCFF"), binwidth = 1/100)
+@
+
+Na wykresie widac 3 interesujace maksima lokalne w okolicy 0, 0.25 oraz 0.5 $g$. 
+Co ma na to wplyw?
+
+
+
+\subsubsection{Obserwacje}
+
+Wiekoszosc badanych cech ma wiele wartosci odstajacych
+zauwazyc mozna, ze pH oraz gestosc maja rozklad symetryczny
+by sprawdzic, czy jest to rozklad normalny (a nie plato- lub leptokurtyczny)
+mozemy posluzyc sie obliczeniem kolejno sredniej arytm., mediany oraz mody  
+\newline
+Wiemy, ze rozklad dla rozkladu normalnego mamy jedno maksimum, kurtoza wynosi 0,
+w punkci centralnym znajduja sie srednia arytm., mediana, moda (dominanta)
+zatem sprawdzmy je:
+
+
+{\bf{pH}}
+<<>>=
+ph_mean = mean(wine$pH)
+ph_med = median(wine$pH)
+ph_mode = Mode(wine$pH)
+cat("mean   ", ph_mean, "\nmedian:", ph_med, "\nmode   ", ph_mode)
+@
+
+Kurtoza (miara splaszczenia wartosci rozkladu cechy):
+
+<<>>=
+kurtosis(wine$pH)
+@
+
+kurtoza $> 0 \Rightarrow$ rozklad wysmukly (wartosci bardziej skoncentrowane niz przy 
+rozkladzie normalnym)
+
+Dla pewnosci uzyjmy testu $Shapiro-Wilka$
+\newline
+TestowaÄ‡ bÄ™dziemy hipotezÄ™ zerowÄ… {\bf{H0}}: rozklad pH jest normalny, wobec hipotezy alternatywnej {\bf{H1}}: rozklad pH nie jest normalny
+Je¿eli $p-wartosc > 0.05$, to przyjmujemy {\bf{H0}} 
+
+<<>>=
+shapiro.test(wine$pH)
+@
+
+A wiec odrzucamy hipoteze zerowa, a przyjmujemy alternatywna, co za tym idzie - rozklad ten nie jest normalny.
+Jednak zauwazamy podobienstwo do tegoz rozkladu.
+
+
+{\bf{density}}
+
+<<>>=
+den_mean = mean(wine$density)
+den_med = median(wine$density)
+den_mode = Mode(wine$density)
+
+cat("mean   ", den_mean, "\nmedian:", den_med, "\nmode   ", den_mode)
+@
+
+Kurtoza:
+<<>>=
+kurtosis(wine$density)
+@
+
+kurtoza $> 0 \Rightarrow$ rozklad wysmukly (wartosci bardziej skoncentrowane niz przy 
+rozkladzie normalnym)
+
+Testu $Shapiro-Wilka$
+
+<<>>=
+shapiro.test(wine$density)
+@
+
+Znowu nie jest to rozklad normalny, mimo ze z wykresu widac pewne podobienstwo.
+
+
+
+Przyjrzyjmy sie jeszcze wykresom kwantyl-kwantyl (Q-Q Plot) tych dwoch zmiennych:
+(Q-Q Plot - s³u¿y do porównywania rozk³adu w próbie z wybranym rozk³adem hipotetycznym – w tym wypadku rozk³adem normalnym)
+
+
+{\bf{pH}}
+
+<<label = ph_qqplot, fig = TRUE>>=
+ggplot(wine, aes(sample = pH)) + 
+  stat_qq(color = c("#FF6633"), size = 1.5) +
+  stat_qq_line(color = c("#6633CC"), size = 0.8) +
+  ggtitle("Q-Q Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+
+{\bf{density}}
+<<label = denisty_qqplot, fig = TRUE>>=
+ggplot(wine, aes(sample = density)) + 
+  stat_qq(color = c("#FF6633"), size = 1.5) +
+  stat_qq_line(color = c("#6633CC"), size = 0.8) +
+  ggtitle("Q-Q Plot") +
+  theme(plot.title = element_text(hjust = 0.5))
+@
+
+
+Zauwazyc mozna ze rozklad pH jest bardzo zblizony do normalnego, jednak 
+rozni sie przez wartosci odstajace, ktorych polozenie znacznie odbiega od prostej
+rozklad density odbiega jeszcze bardziej
+\newline
+Sprawdzmy, jak wiele jest wartosci odstajacych dla zmiennych pH oraz gestosc:
+
+
+<<>>=
+outliers(wine$density)
+outliers(wine$pH)
+@
+
+
+
+
+\subsection{Korelacja $r-Pearsona$}
+Korelacja sluzy do sprawdzenia, czy zmienne ilosciowe sa
+powiazane zwiazkiem liniowym
+\newline
+Correlogram - graficznie przedstawiona macierz korelacji
+
+Na ponizszym wykresie przedstawione jest polaczenie correlogramu z testem istotnosci - za wynik 
+nieistotny statystycznie uznajemy taki, ze p-wartosc > 0.05
+(oznaczone jako puste pole na wykresie)
+
+
+<<label = correlogram, fig = TRUE>>=
+corr <- cor(wine)
+pval <- cor_pmat(wine)
+
+ggcorrplot(corr, hc.order = TRUE, type = "upper", lab = TRUE,
+           colors = c("#2166AC", "white", "#CC0000"), p.mat = pval, 
+           sig.level = 0.05, insig = "blank", ggtheme = ggplot2::theme_gray)
+@
+
+
+Skupmy sie na tym, od czego w glownej mierze zalezy jakosc wina
+jak widzimy na wykresie, najwieksza korelacja (liniowa) wystepuje kolejno 
+dla: alcohol, volatile.acidity, sulphates, citric.acid, etc.
+
+Spojrzmy jak zmienia sie zawartosc alkoholu wraz ze wzrostem jakosci :
+
+<<label = qual_alc_boxplots>>=
+ggplot(data = wine, mapping = aes(x = as.factor(quality), y = alcohol)) + 
+  geom_boxplot(fill = c("#CC99FF"), outlier.size = 2, alpha = 0.5, size = 0.6) +
+  ylab("Alcohol") + xlab("Quality") + stat_boxplot(geom = 'errorbar') 
+@
+
+Zauwazyc mozna, ze im wyzsza jakosc wina, tym wieksza mediana zawartosci alkoholu,
+wyjatkiem jest wino jakosci 5, tam tez pojawia sie spora ilosc wartosci odstajacych
+
+
+
+Przeanalizujmy jeszcze zawartosc kwasu octowego (volatile.acidity), by sprawdzic,
+czy poczatkowe przypuszczenie, jakoby wieksza jego zawartosc powodowala spadek 
+jakosci, jest sluszne
+
+<<label = col_quality_boxplots, fig = TRUE>>=
+ggplot(data = wine, mapping = aes(x = as.factor(quality), y = volatile.acidity)) + 
+  geom_boxplot(fill = c("#CC99FF"), outlier.size = 2, alpha = 0.5, size = 0.6) +
+  ylab("Volatile acidity") + xlab("Quality") + stat_boxplot(geom = 'errorbar') 
+@
+
+Widac wyraznie, ze im wieksza zawartosc kwasu octowego w winie, tym gorsza jest jego jakosc - co zgadza sie z przypuszczeniami
+
+\vspace{1cm}
+Stosunkowo duza korelacja (ujemna) wystepuje pomiedzy zawartoscia kwasu octowego a kwasu cytrynowego (-0.55), a takze miedzy kazdym z nich oraz jakoscia wina
+
+Sprawdzmy jak mediana (ktora odporna jest na wartosci odstajace) zawartosci 
+kazdego z powyzszych kwasow zmienia sie wraz ze wzrostem jakosci wina
+
+
+<<fig = plot1, fig = TRUE>>=
+ggplot(wine, aes(quality, citric.acid)) +
+  stat_summary(fun.y = median, color = "lightsalmon", geom = "line", size =1) 
+@
+
+<<label = plot2, fig = TRUE>>=
+ggplot(wine, aes(quality, volatile.acidity)) +
+  stat_summary(fun.y = median, color = "lightsteelblue4", geom = "line", size =1)
+@
+
+Polaczmy w jeden wykres:
+<<echo = F>>=
+by_quality <- wine %>% 
+  group_by(quality)%>%
+  summarise(cit_med = median(citric.acid), vol_med = median(volatile.acidity), n = n())
+@
+
+<<label = plot3, fig = TRUE>>=
+ggplot() + 
+  geom_line(data = by_quality, aes(x = quality, y = cit_med, color = "lightsalmon"), size = 1) + 
+  geom_line(data = by_quality, aes(x = quality, y = vol_med, color = "lightsteelblue4"), size = 1) +
+  ylab("acid") + scale_color_discrete(name = "acids:", labels = c("citric", "volatile"))
+@
+
+\subsubsection{Obserwacje}
+Wraz ze wzrostem jakosci wina, do pewnego momentu wzrasta zawartosc kwasu cytrynowego 
+("swiezosc"), natomiast maleje zawartosc kwasu octowego (octowy posmak)
+im wyzsza jakosc, tym roznica miedzy zawartoscia kwasow maleje
+zauwazmy, ze wino najwyszej jakosci (7/8) posiadaja podobna ilosc obu z tych kwasow 
+
+
+
+
+\subsection{Regresja}
+Zalozenia:
+\begin{itemize}
+  \item zaleznosc liniowa pomiedzy predyktorami a zmienna zalezna 
+  \item liczba obserwacji musi byæ wiêksza b¹dŸ równa liczbie parametrów wyprowadzonych z analizy regresji (wspó³czynniki dla predyktorów, wyraz wolny
+  \item wariancja reszt powinna byc stala w calym przedziale.
+  \item nie wystepuje autokorelacja reszt, rozklad reszt jest przypadkowy.
+  \item reszty maj¹ rozk³ad zbli¿ony do rozk³adu normalnego
+  \item brak wspó³liniowoœci predyktorów - regresja wieloraka, wielokrotna
+\end{itemize}
+
+\subsubsection{quality - alcohol}
+<<label = reg1, fig = TRUE>>=
+ggplot(wine, aes(x=quality, y=alcohol)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+
+\subsubsection{alcohol - density}
+<<label  = reg2, fig = TRUE>>=
+ggplot(wine, aes(x=alcohol, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+
+\subsubsection{pH - fixed.acidity}
+
+<<label = reg3, fig = TRUE>>=
+ggplot(wine, aes(x=pH, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+\subsubsection{total.sulfur.dioxide - free.sulfur.dioxide}
+
+<<label = reg4, fig = TRUE>>=
+ggplot(wine, aes(x=total.sulfur.dioxide, y=free.sulfur.dioxide)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+
+\subsubsection{citric.acid - fixed.acidity}
+<<label = reg5, fig = TRUE>>=
+ggplot(wine, aes(x=citric.acid, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+
+\subsubsection{fixed.acidity - density}
+
+<<label = reg6, fig = TRUE>>=
+ggplot(wine, aes(x=fixed.acidity, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+@
+
+
+\subsection{Dopasowanie rozkladu}
+<<label = dop1, fig = TRUE>>=
+descdist(wine$alcohol, discrete = FALSE)
+
+@
+
+<<label = dop2, fig = TRUE>>=
+descdist(wine$density, discrete = FALSE)
+@
+
+
+
+
+
+
+\section{Wnioski}
+Wnioski pÅ‚ynÄ…ce z przeprowadzonej analizy, sÄ… nastÄ™pujÄ…ce:
+
+\begin{itemize}
+
+\item w analizowanym zbiorze danych wystepuje wiele wartosci odstajacych 
+
+\item wykryto wiele korelacji liniowych o dosc stosunkowo duzym wspolczynniku, m. in. 
+$quality - alcohol, alcohol - density, ph - fixed.acidity, total.sulfur.dioxide - free.sulfur.dioxide$, etc
+
+\item zawartosc kwasu cytrynowego w winie posiada 3 maksima lokalne w okolicy 0, 0.25 oraz 0.5g
+
+\item znalezione zostaly rozklady podobne do normalnych, lecz testy nakazaly odrzucic hipoteze, jakoby byly one normalne (pH, gestosc)
+
+\item pojawila sie ciekawa zaleznosc pomiedzy jakoscia wina, a zawartoscia kwasu octowego i kwasu cytrynowego (jednoczesnie); wino najwyzszej jakosci posiada podobna ilosc obu z tych kwasow
+
+
+\end{itemize}
+
+
+\end{document}
