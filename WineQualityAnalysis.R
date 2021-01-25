@@ -5,6 +5,7 @@ install.packages("Hmisc")
 install.packages("corrplot")
 install.packages("ggcorrplot")
 install.packages("dplyr")
+install.packages("fitdistrplus")
 
 library(ggplot2)
 library(ggpubr)
@@ -13,14 +14,11 @@ library(Hmisc)
 library(corrplot)
 library(ggcorrplot)
 library(dplyr)
+library(fitdistrplus)
 
 
 
-# TODO: 
-#zmien sciezke xdd, 
-# przedzial ufnosci
-
-wine <- read.csv("D:/studia/RPIS/projekt/winequality.csv", sep=";")
+wine <- read.csv("winequality.csv", sep=";")
 
 
 # poszczegolne zmienne w naszym datasecie:
@@ -51,6 +49,10 @@ anyNA(wine)
 # FALSE - no missing values
 
 
+summary(wine)
+head(wine)
+
+
 # wykres slupkowy przedstawiajacy licznosc poszczegolnych grup wina,
 # ze wzgledu na jego jakosc - jest ona okreslona jako liczba calkowita
 # z przedzialu [0,10], im wysza ocena, tym lepsze jakosciowo jest wino
@@ -68,12 +70,8 @@ ggplot(data, aes(x=Var1, y =Freq)) + geom_bar(stat = "identity", fill = c("#66CC
 # jakosci (najrzadziej niskiej)
 
 
-# odchylenie standardowe - miara rozrzutu wokol sredniej
-sd(wine$alcohol)
 
-summary(wine)
-
-# boxplot dla kazdej ze zmiennych
+# boxplot 
 # rozklad danych oparty na: 
 #   "min", kwartyl dolny(Q1), mediana(Q2), kwartyl górny(Q3), "max",
 #   gdzie "min" = Q1 - 1.5*IQR, "max" = Q3 + 1.5*IQR, IQR = Q3 - Q1
@@ -107,7 +105,7 @@ ggplot(data = wine, aes(pH)) +
   geom_density(size = 0.9, color = c("#000033")) + 
   stat_function(fun = dnorm, args = list(mean = mean(wine$pH), sd = sd(wine$pH)), color = "red", size = 0.7)
 
-
+skewness(wine$alcohol)
 
 
 # 3. ALCOHOL
@@ -153,9 +151,8 @@ ggplot(data = wine, mapping = aes(y = sulphates)) +
                alpha = 0.5, size = 0.6) +
   ylab("Sulphates") + coord_flip() + stat_boxplot(geom = 'errorbar')
 
-# rozklad jakby eksponencjalny???
 
-# histogram z naniesiona gestoscia oraz gestoscia rozkladu wykladniczego
+# histogram z naniesiona gestoscia 
 ggplot(data = wine, aes(sulphates)) + 
   geom_histogram(aes(y = ..density..), binwidth = 1/50, color = "darkblue", fill = c("#99CCFF")) +
   geom_density(size = 0.9, color = c("#000033")) 
@@ -338,9 +335,6 @@ ggcorrplot(corr, hc.order = TRUE, type = "upper", lab = TRUE,
 
 
 
-# TODO:
-# KORELACJA SPEARMANA - lepsza, w przypadku wartosci odstajacych
-
 
 
 # skupmy sie na tym, od czego w glownej mierze zalezy jakosc wina
@@ -371,49 +365,6 @@ ggplot(data = wine, mapping = aes(x = as.factor(quality), y = volatile.acidity))
 # widac wyraznie, ze im wieksza zawartosc kwasu octowego w winie, tym gorsza
 # jest jego jakosc - co zgadza sie z przypuszczeniami
 
-
-# przeanalizujmy regresje
-
-
-# REGRESJA LINIOWA
-
-
-# quality - alcohol
-ggplot(wine, aes(x=quality, y=alcohol)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
-
-# alcohol - density
-ggplot(wine, aes(x=alcohol, y=density)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
-
-
-
-# duza korelacja takze pomiedzy: 
-
-# ph - fixed.acidity
-ggplot(wine, aes(x=pH, y=fixed.acidity)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
-
-
-# total.sulfur.dioxide - free.sulfur.dioxide
-ggplot(wine, aes(x=total.sulfur.dioxide, y=free.sulfur.dioxide)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
-
-
-# citric.acid - fixed.acidity
-ggplot(wine, aes(x=citric.acid, y=fixed.acidity)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
-
-
-# fixed.acidity - density
-ggplot(wine, aes(x=fixed.acidity, y=density)) + 
-  geom_point(color = c("#6633CC")) + 
-  geom_smooth(method = "lm", color = "#CC99FF")
 
 
 
@@ -472,11 +423,61 @@ ggplot(wine, aes(x=free.sulfur.dioxide, y=sulphates)) +
 
 
 
-# TODO: dopasowanie rozkladu???
-# beznadzieja : ))))
+# przeanalizujmy regresje
 
-install.packages("fitdistrplus")
-library(fitdistrplus)
+
+# REGRESJA LINIOWA
+
+
+# quality - alcohol
+ggplot(wine, aes(x=quality, y=alcohol)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+model <- lm(quality~alcohol, data = wine)
+p1 <- plotHistDensNorm(model,model$residuals, binWidth = 10, auto = F, 
+                       myMean = 0, mySd = sd(model$residuals), show = F)
+
+p2 <- ggqqplot(model$residuals)
+
+
+
+# alcohol - density
+ggplot(wine, aes(x=alcohol, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+
+# duza korelacja takze pomiedzy: 
+
+# ph - fixed.acidity
+ggplot(wine, aes(x=pH, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# total.sulfur.dioxide - free.sulfur.dioxide
+ggplot(wine, aes(x=total.sulfur.dioxide, y=free.sulfur.dioxide)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# citric.acid - fixed.acidity
+ggplot(wine, aes(x=citric.acid, y=fixed.acidity)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+# fixed.acidity - density
+ggplot(wine, aes(x=fixed.acidity, y=density)) + 
+  geom_point(color = c("#6633CC")) + 
+  geom_smooth(method = "lm", color = "#CC99FF")
+
+
+
+
+# dopasowanie rozkladu
 
 descdist(wine$alcohol, discrete = FALSE)
 
@@ -485,5 +486,3 @@ descdist(wine$pH, discrete = FALSE)
 descdist(wine$density, discrete = FALSE)
 
 descdist(wine$density, discrete = TRUE)
-
-fitdist(wine$alcohol, "beta")
